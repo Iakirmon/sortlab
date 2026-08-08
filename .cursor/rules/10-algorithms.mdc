@@ -1,0 +1,82 @@
+---
+description: Kontrakt pisania algorytmów sortowania w sortlab.
+globs: src/sortlab/algorithms/**
+---
+
+# Kontrakt algorytmu
+
+## Szkielet katalogu
+
+Każdy algorytm to katalog `src/sortlab/algorithms/<nazwa>/` zawierający dokładnie trzy pliki:
+
+```
+__init__.py      from .algorithm import *   (albo puste — byle import podpakietu odpalił dekoratory)
+algorithm.py     implementacja + @register
+README.md        po polsku: jak działa, złożoność, kiedy używać, co pokazał pomiar
+```
+
+## Wzorzec implementacji
+
+```python
+"""Bubble sort — the baseline for how slow a correct sort can be."""
+
+from collections.abc import MutableSequence
+from typing import Any
+
+from sortlab.registry import register
+
+
+@register(
+    name="bubble_sort",
+    complexity="O(n^2)",
+    expected_exponent=2.0,
+    stable=True,
+    in_place=True,
+    comparison_based=True,
+    max_n=20_000,
+    notes="Naive variant without early exit.",
+)
+def bubble_sort(a: MutableSequence[Any]) -> None:
+    """Sort `a` in place by repeatedly swapping adjacent out-of-order pairs."""
+    n = len(a)
+    for i in range(n - 1):
+        for j in range(n - 1 - i):
+            if a[j] > a[j + 1]:
+                a[j], a[j + 1] = a[j + 1], a[j]
+```
+
+## Zasady bezwzględne
+
+1. **Importy tylko z `sortlab.registry` i biblioteki standardowej.** Nic z `instrument`,
+   `bench`, `profile`, `report`, `complexity`. Algorytm nie może wiedzieć, że jest mierzony.
+2. **Sortuj in-place, zwracaj `None`.** Także wtedy, gdy algorytm wewnętrznie potrzebuje
+   bufora (merge, counting, radix) — wynik przepisz do wejścia przez `a[i] = ...` albo
+   `a[:] = ...`.
+3. **Operuj wyłącznie przez interfejs `MutableSequence`:** `len(a)`, `a[i]`, `a[i] = x`
+   i operatory porównania `<`, `>`, `<=`, `>=`, `==` na elementach. To jedyny powód, dla
+   którego instrumentacja jest przezroczysta — każde inne podejście ją omija i psuje pomiar.
+4. **W algorytmie porównującym nigdy `sorted()`, `a.sort()`, `min()`, `max()`, `set`, `dict`.**
+   Wyjątki: `counting_sort` i `radix_sort` mają `comparison_based=False` i wolno im używać
+   list-kubełków (nie porównują, więc licznik porównań ma tam wyjść zerowy — to zamierzony
+   wynik i puenta projektu). `builtin_timsort` jest jawnym wyjątkiem opisanym w specu.
+5. **Czytelność ponad wydajność.** Nazwy z podręcznika, jeden pomysł na linię, bez sprytnych
+   sztuczek. Jeśli wybierasz między wersją szybszą i wersją zrozumiałą — bierz zrozumiałą.
+   Ktoś to będzie czytał, żeby się nauczyć.
+6. **Wariant = osobna zarejestrowana nazwa.** `quick_sort_last`, `quick_sort_random`,
+   `quick_sort_median3` to trzy wpisy w jednym katalogu. Wspólną część wydziel do prywatnej
+   funkcji `_quicksort(a, lo, hi, choose_pivot)`.
+7. **`max_n` ustaw uczciwie.** Zgrubna reguła: kwadratowe → 20 000, n log n i liniowe →
+   1 000 000, `builtin_timsort` → 5 000 000. Bez tego runner utyka na bubble sorcie.
+8. **Nie pisz testów w katalogu algorytmu.** Zestaw testów jest współdzielony
+   i parametryzowany po rejestrze — nowy algorytm dziedziczy go automatycznie. Jeśli czujesz,
+   że potrzebujesz osobnego testu, to znaczy że algorytm łamie któryś z punktów powyżej.
+
+## README algorytmu — struktura
+
+Po polsku, zwięźle, cztery sekcje: **Jak działa** (2–4 zdania plus mały przykład krok po
+kroku na 5 elementach), **Złożoność** (najlepszy / średni / najgorszy, pamięć, stabilność),
+**Kiedy używać** (uczciwie: zwykle „nigdy w produkcji, ale…"), **Co pokazał pomiar** (jedna
+konkretna obserwacja z benchmarków, z liczbą).
+
+Ostatnia sekcja jest najważniejsza — trzy pierwsze każdy przepisze z Wikipedii, czwarta jest
+dowodem, że projekt naprawdę mierzy.

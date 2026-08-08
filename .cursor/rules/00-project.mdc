@@ -1,0 +1,101 @@
+---
+description: sortlab — niezmienniki architektury, styl kodu i dyscyplina testów. Obowiązuje w całym repo.
+alwaysApply: true
+---
+
+# sortlab — zasady projektu
+
+Projekt techniczny: `docs/spec/2026-08-08-sortlab-design.md`. To dokument nadrzędny.
+Jeśli cokolwiek w tych zasadach jest z nim sprzeczne — spec ma rację, a rozbieżność zgłoś.
+
+## Czym jest ten projekt
+
+Laboratorium pomiarowe algorytmów sortowania. Środek ciężkości leży w warstwie pomiarowej,
+nie w algorytmach. Implementacje sortowań są celowo naiwne i czytelne — to materiał do
+czytania. Cała inżynieria jest w tym, czym się je mierzy.
+
+Nie optymalizuj algorytmów. Nie próbuj pobić `sorted()`. Jeśli widzisz „nieefektywność"
+w `bubble_sort` — to jest zamierzone i o tym jest cały projekt.
+
+## Niezmienniki — nie łam ich nigdy
+
+1. **Algorytmy nie wiedzą, że są mierzone.** Żaden plik w `src/sortlab/algorithms/` nie
+   importuje z `instrument`, `bench`, `profile`, `report` ani `complexity`. Wolno mu importować
+   wyłącznie z `registry` (dekorator) i biblioteki standardowej. Algorytm, który wie o pomiarze,
+   przestaje być uczciwym obiektem pomiaru.
+2. **Zależności idą w jedną stronę.** `algorithms/` → `registry` → `types`. Warstwa pomiarowa
+   czyta rejestr; rejestr nie wie nic o warstwie pomiarowej.
+3. **Jeden kontrakt sortowania:** `Callable[[MutableSequence[Any]], None]` — sortuje in-place,
+   zwraca `None`. Bez wyjątków, także dla `builtin_timsort` (`a[:] = sorted(a)`).
+4. **Czasu nigdy nie mierzymy na danych instrumentowanych.** Dwa rozdzielne tryby: tryb czasu
+   na surowych `int`, tryb liczenia na `TrackedList`. Zmieszanie ich unieważnia oba wyniki.
+5. **Dodanie algorytmu = nowy katalog + dekorator.** Zero edycji w istniejących plikach.
+   Jeśli musisz coś dopisać w `bench.py`, `report.py` albo w testach, żeby nowy algorytm
+   zadziałał — rejestr jest zepsuty i to jego trzeba naprawić.
+6. **Pominięte pomiary trafiają do raportu jako pominięte.** Nigdy nie usuwaj kombinacji
+   z wyników. Puste miejsce na wykresie musi mieć podpis.
+
+## Kod
+
+- Python 3.11+. Adnotacje typów wszędzie, także dla zmiennych lokalnych tam, gdzie typ nie
+  jest oczywisty. `mypy --strict src/` musi przechodzić.
+- `ruff check` i `ruff format` czyste. Długość linii 100.
+- Nazwy identyfikatorów i docstringi po angielsku. Dokumentacja prozą (`docs/`,
+  `algorithms/*/README.md`) po polsku. Główne `README.md` po angielsku.
+- `@dataclass(frozen=True, slots=True)` dla wyników i metadanych. Struktury wyników są
+  niemutowalne.
+- Bez klas tam, gdzie wystarczy funkcja. Bez fabryk, bez warstw abstrakcji „na przyszłość".
+  YAGNI obowiązuje bezwzględnie.
+- Wyjątki: własna hierarchia w `types.py` (`SortlabError` i pochodne). Nigdy `except:` ani
+  `except Exception` bez ponownego podniesienia.
+
+## Zależności
+
+Produkcyjne, wyłącznie te: `matplotlib`, `psutil`, `pillow`, `rich`.
+Deweloperskie: `pytest`, `pytest-cov`, `hypothesis`, `ruff`, `mypy`.
+
+**Nie dodawaj żadnej innej biblioteki bez pytania.** Jeśli uważasz, że któraś jest potrzebna —
+zapytaj i uzasadnij. `numpy` jest dostępny tranzytywnie przez `matplotlib`; wolno go używać
+w `complexity.py` i `report.py`, nigdzie więcej.
+
+## Testy — dyscyplina TDD
+
+Kolejność jest obowiązkowa: **najpierw test, uruchom go i zobacz, jak nie przechodzi, potem
+implementacja.** Test, którego nie widziałeś jako czerwonego, nie jest testem — jest życzeniem.
+
+- Testy algorytmów są **współdzielone i parametryzowane po rejestrze**. Żaden algorytm nie ma
+  własnego pliku testowego. Nowy algorytm dziedziczy cały zestaw automatycznie.
+- `test_instrument.py` sprawdza narzędzie pomiarowe wzorcem policzonym na piechotę. Licznik,
+  który kłamie, unieważnia cały projekt — ten plik jest ważniejszy, niż wygląda.
+- Nigdy nie osłabiaj asercji, żeby test przeszedł. Jeśli test nie przechodzi, zepsuty jest kod
+  albo zepsute jest założenie testu — rozstrzygnij które, powiedz to wprost i napraw właściwą
+  rzecz.
+- Pokrycie ≥ 90% dla `src/sortlab/` poza `report.py` i `animate.py`, które testujemy dymnie
+  (plik powstał i jest niepusty).
+
+## Pomiar — protokół obowiązkowy
+
+Każdy pomiar czasu: świeża kopia danych na każde powtórzenie, jeden przebieg rozgrzewkowy
+odrzucany, `gc.disable()` w `try` i `gc.enable()` w `finally`, `time.perf_counter()`,
+raportowana mediana z powtórzeń.
+
+Świeża kopia jest krytyczna: algorytmy sortują in-place, więc drugie powtórzenie na tej samej
+liście mierzyłoby sortowanie już posortowanych danych. To najłatwiejszy sposób, żeby wszystkie
+wyniki w projekcie były ciche i błędne.
+
+Do każdego zapisanego wyniku dołączamy model CPU, liczbę rdzeni, wersję Pythona i system.
+Wykres bez tych danych jest nieuczciwy.
+
+## Git
+
+- `data/` w `.gitignore` — generowany CSV nie idzie do repo.
+- `docs/charts/*.png`, `docs/animations/*.gif` i `benchmarks/results/*.json` **commitujemy** —
+  to one sprawiają, że repo mówi samo za siebie bez uruchamiania czegokolwiek.
+- Nie commituj i nie pushuj bez wyraźnej prośby.
+
+## Jak pracujemy
+
+- Jeden etap z sekcji 10 specu na raz. Nie wybiegaj do przodu.
+- Po każdym etapie uruchom `ruff check`, `mypy --strict src/`, `pytest` i pokaż wynik.
+  Nie twierdź, że etap jest gotowy, dopóki tego nie zobaczysz na własne oczy.
+- Jeśli spec jest w jakimś punkcie niejasny — zapytaj. Nie zgaduj i nie wymyślaj rozszerzeń.

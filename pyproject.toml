@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sortlab"
+version = "0.1.0"
+description = "Measurement lab for sorting algorithms"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib",
+    "psutil",
+    "pillow",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "ruff",
+    "mypy",
+    "types-psutil",
+]
+
+[project.scripts]
+sortlab = "sortlab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["sortlab"]
+
+[[tool.mypy.overrides]]
+module = ["matplotlib.*", "PIL.*", "numpy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sortlab.report", "sortlab.animate"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=sortlab --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+source = ["sortlab"]
+omit = ["*/report.py", "*/animate.py", "*/cli.py"]
