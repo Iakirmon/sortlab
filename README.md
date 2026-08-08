@@ -114,3 +114,76 @@ Algorithms never import the measurement layer. Dependencies point one way:
 `algorithms → registry → types`, while `bench` / `instrument` / `report` read the
 registry. An algorithm that knows it is being measured stops being an honest object of
 measurement.
+
+---
+
+## Po polsku
+
+**sortlab** to laboratorium pomiarowe algorytmów sortowania w Pythonie: czytelne
+implementacje, uczciwa instrumentacja i złożoność odczytywana z wykresu log-log.
+
+### Wnioski
+
+Liczby pochodzą z `benchmarks/results/latest.json` (model CPU i wersja Pythona są
+na podpisach wykresów).
+
+1. **Insertion sort wygrywa z quicksortem na prawie posortowanych danych** w całym
+   mierzonym zakresie. Dla każdego `n` od 200 do 3200 `insertion_sort` na
+   `nearly_sorted` zajmował ok. **9–15%** czasu `quick_sort_median3` (np. n=3200:
+   0,144 ms vs 1,59 ms). W tym oknie nie ma punktu przecięcia — „O(n²) zawsze jest
+   gorsze” nie dotyczy adaptacyjnych sortowań kwadratowych.
+
+2. **Naiwny pivot psuje quicksort na posortowanym wejściu.** `quick_sort_last` na
+   `sorted` vs `random` zwalnia **9,5× przy n=200**, **54× przy n=1600** i **99× przy
+   n=3200** (0,212 s vs 0,0021 s). Ten sam algorytm, to samo `n`, inny kształt danych.
+
+3. **Porównania i zapisy to osobne metryki.** Na random n=3200 `selection_sort` zrobił
+   **5 118 400** porównań, ale tylko **6384** zapisy; `bubble_sort` zapisał ok.
+   **5,18 mln** razy. Selection i tak jest wolny — liczniki po prostu mierzą coś innego.
+
+4. **Radix sort przełamuje narrację o sortowaniu przez porównania.** Na random n=3200
+   zmierzony wykładnik ≈ **1,08**, a w trybie liczenia **0 porównań** (sama praca na
+   kubełkach). Koszt: założenie o kluczach całkowitych i dodatkowa pamięć.
+
+5. **Wbudowany Timsort nadal jest daleko z przodu.** Na random n=3200
+   `builtin_timsort` zajął **0,212 ms**; najlepszy czysty Python (`counting_sort`) był
+   ok. **3×** wolniejszy, a `quick_sort_median3` ok. **9×**. Różnica to interpreter,
+   nie sam pomysł algorytmu.
+
+### Uruchomienie
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+sortlab list
+sortlab bench                          # zapisuje benchmarks/results/latest.json
+sortlab report                         # wykresy + tabele w README
+sortlab animate --algorithm merge_sort
+sortlab dataset --rows 200000 -o data/records.csv
+```
+
+### Jak dodać własny algorytm
+
+Utwórz `src/sortlab/algorithms/<nazwa>/` z `algorithm.py`, `__init__.py` i polskim
+`README.md`, potem udekoruj funkcję `@register(...)`. Reszty plików nie trzeba
+edytować — discovery i wspólny zestaw testów łapią nowy wpis same.
+
+### Metodologia pomiaru
+
+- **Tryb czasu:** surowe `int`, świeża kopia na każde powtórzenie, jeden przebieg
+  rozgrzewkowy odrzucany, `gc.disable()` na czas pomiaru, `time.perf_counter()`,
+  raportowana **mediana**.
+- **Tryb liczenia:** `TrackedList` + `Tracked`. Nigdy nie mieszany z pomiarem czasu.
+- **Bezpieczniki:** pominięcia `max_n` i timeouty zostają w macierzy wyników jako
+  pominięte wiersze.
+- **Ograniczenia (uczciwie):** szum CPU na krótkich przebiegach; próbkowanie RSS tylko
+  dla przebiegów ≥ 0,5 s; wyniki z jednej maszyny; porównania `builtin_timsort`
+  dzieją się w C i **nie** są widoczne dla `Tracked`.
+
+### Architektura
+
+Algorytmy nie importują warstwy pomiarowej. Zależności idą w jedną stronę:
+`algorithms → registry → types`, a `bench` / `instrument` / `report` czytają rejestr.
+Algorytm, który wie, że jest mierzony, przestaje być uczciwym obiektem pomiaru.
