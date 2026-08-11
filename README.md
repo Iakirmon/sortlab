@@ -169,6 +169,12 @@ measurement.
 
 ---
 
+## License
+
+[MIT](LICENSE) — Copyright (c) 2026 Wojciech Wypych (Iakirmon).
+
+---
+
 ## Po polsku
 
 **sortlab** to laboratorium pomiarowe algorytmów sortowania w Pythonie: czytelne
@@ -312,3 +318,7 @@ edytować — discovery i wspólny zestaw testów łapią nowy wpis same.
 Algorytmy nie importują warstwy pomiarowej. Zależności idą w jedną stronę:
 `algorithms → registry → types`, a `bench` / `instrument` / `report` czytają rejestr.
 Algorytm, który wie, że jest mierzony, przestaje być uczciwym obiektem pomiaru.
+
+### Licencja
+
+[MIT](LICENSE) — Copyright (c) 2026 Wojciech Wypych (Iakirmon).
